@@ -162,9 +162,14 @@ meetrec/
 │   ├── .env.example
 │   └── package.json
 ├── test/                 automated tests (npm test, from bridge/)
-└── install-autostart.sh  installs or removes the background service
+├── install-autostart.sh  installs or removes the background service
+└── LICENSE               MIT
 ```
 
 ## A note on consent
 
 Recording laws differ by country, and many places require everyone on a call to agree to be recorded. MeetRec records automatically, so it's easy to forget it's on. Let people know when you're recording them.
+
+## License
+
+[MIT](LICENSE) © 2026 renish-1111

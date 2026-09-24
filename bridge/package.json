@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Local bridge that receives Meet join/leave events from the MeetRec browser extension and drives OBS recording via obs-websocket.",
+  "license": "MIT",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
