@@ -1,6 +1,27 @@
-# MeetRec
+<p align="center">
+  <img src="https://cdn.simpleicons.org/googlemeet" width="72" height="72" alt="Google Meet">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.simpleicons.org/obsstudio/white">
+    <img src="https://cdn.simpleicons.org/obsstudio" width="72" height="72" alt="OBS Studio">
+  </picture>
+</p>
 
-**Automatic OBS recording for Google Meet.** Join a call and recording starts. Hang up and it stops. There's nothing to click and nothing to forget.
+<h1 align="center">MeetRec</h1>
+
+<p align="center">
+  <b>Automatic OBS recording for Google Meet.</b><br>
+  Join a call and recording starts. Hang up and it stops. There's nothing to click and nothing to forget.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Google%20Meet-00897B?logo=googlemeet&logoColor=white" alt="Google Meet">
+  <img src="https://img.shields.io/badge/OBS%20Studio-302E31?logo=obsstudio&logoColor=white" alt="OBS Studio">
+  <img src="https://img.shields.io/badge/Chrome%20%7C%20Edge-MV3-4285F4?logo=googlechrome&logoColor=white" alt="Chrome or Edge, Manifest V3">
+  <img src="https://img.shields.io/badge/Node.js-18%2B-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js 18+">
+  <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/renish-1111/meetrec" alt="MIT license"></a>
+</p>
 
 - **Starts on its own.** Recording begins a few seconds after you join a call. It doesn't start in the pre-join lobby.
 - **Stops on its own.** Recording ends about 3 seconds after you leave, or after you close the tab or the browser crashes.
@@ -29,10 +50,10 @@
 
 ## Requirements
 
-- **Linux** with a desktop session. Tested on Ubuntu with X11. The auto-start script uses systemd.
-- **[OBS Studio](https://obsproject.com/) 28 or newer**, which includes the WebSocket server (`sudo snap install obs-studio` or `sudo apt install obs-studio`)
-- **Node.js 18 or newer**
-- **Google Chrome, Chromium or Microsoft Edge**
+- <img src="https://cdn.simpleicons.org/linux/9e9e9e" width="16" height="16" alt=""> **Linux** with a desktop session. Tested on Ubuntu with X11. The auto-start script uses systemd.
+- <img src="https://cdn.simpleicons.org/obsstudio/9e9e9e" width="16" height="16" alt=""> **[OBS Studio](https://obsproject.com/) 28 or newer**, which includes the WebSocket server (`sudo snap install obs-studio` or `sudo apt install obs-studio`)
+- <img src="https://cdn.simpleicons.org/nodedotjs" width="16" height="16" alt=""> **Node.js 18 or newer**
+- <img src="https://cdn.simpleicons.org/googlechrome" width="16" height="16" alt=""> **Google Chrome, Chromium or Microsoft Edge**
 
 ## Setup
 
@@ -173,3 +194,5 @@ Recording laws differ by country, and many places require everyone on a call to 
 ## License
 
 [MIT](LICENSE) © 2026 renish-1111
+
+<sub>Google Meet is a trademark of Google LLC. OBS Studio is a trademark of the OBS Project. MeetRec isn't affiliated with or endorsed by either. Logos come from <a href="https://simpleicons.org">Simple Icons</a>.</sub>
