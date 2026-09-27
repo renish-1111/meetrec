@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; --muted: #6b6b6b; --line: #e3e3e3; --ok: #1e8e3e; --bad: #d93025; --accent: #1a73e8; }
+  @media (prefers-color-scheme: dark) { :root { --muted: #a0a0a0; --line: #3a3a3a; --ok: #81c995; --bad: #f28b82; --accent: #8ab4f8; } }
+  body { font: 13px/1.4 system-ui, sans-serif; width: 280px; margin: 0; padding: 14px; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  .row { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); }
+  .row span:first-child { color: var(--muted); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  #drive { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  #drive p { margin: 0 0 8px; overflow-wrap: anywhere; }
+  button { width: 100%; padding: 8px; border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer;
+           background: var(--accent); color: #fff; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  a { color: var(--accent); }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+  <h1>MeetRec</h1>
+  <div id="status"><p class="muted">Checking…</p></div>
+  <div id="drive" hidden></div>
+  <script src="popup.js"></script>
+</body>
+</html>

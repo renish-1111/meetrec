@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import OBSWebSocket from 'obs-websocket-js/json';
 import { spawn } from 'child_process';
+import { driveEnabled, driveStatus, queueUpload, resumeUploads, startLogin, finishLogin, logout } from './drive.js';
 
 const PORT = Number(process.env.PORT || 17643);
 const OBS_URL = process.env.OBS_WEBSOCKET_URL || 'ws://127.0.0.1:4455';
@@ -25,6 +26,21 @@ let obsConnected = false;
 const activeMeetings = new Map();
 let startTimer = null;
 let stopTimer = null;
+
+// Recordings you start by hand in OBS are only uploaded if you opt in.
+const UPLOAD_MANUAL_RECORDINGS = process.env.UPLOAD_MANUAL_RECORDINGS === 'true';
+let startedByMeetRec = false;
+
+// OBS emits STOPPED once the file is fully written, so it's safe to upload then.
+obs.on('RecordStateChanged', ({ outputState, outputPath }) => {
+  if (outputState !== 'OBS_WEBSOCKET_OUTPUT_STOPPED') return;
+  const ours = startedByMeetRec;
+  startedByMeetRec = false;
+  if (!outputPath || !driveStatus().configured || !(ours || UPLOAD_MANUAL_RECORDINGS)) return;
+  // Queued even while Drive is disconnected; it uploads once you connect.
+  queueUpload(outputPath);
+  if (!driveEnabled()) console.log('[MeetRec] Google Drive not connected, the recording will upload once you connect');
+});
 
 obs.on('ConnectionClosed', () => {
   if (obsConnected) console.warn('[MeetRec] OBS connection closed');
@@ -92,6 +108,7 @@ async function startRecording() {
       return;
     }
     await obs.call('StartRecord');
+    startedByMeetRec = true;
     console.log('[MeetRec] recording started');
   } catch (err) {
     console.error('[MeetRec] failed to start recording:', err.message);
@@ -113,7 +130,16 @@ async function stopRecording() {
 }
 
 const app = express();
-app.use(cors());
+// Only the extension (and local tools like curl, which send no Origin) may call
+// the bridge. Without this, any website you visit could start a recording or
+// read your Drive account from /status.
+const isExtensionOrigin = (origin) => /^(chrome|moz)-extension:\/\//.test(origin);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !isExtensionOrigin(origin)) return res.status(403).end();
+  next();
+});
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || isExtensionOrigin(origin)) }));
 app.use(express.json());
 
 app.post('/join', (req, res) => {
@@ -180,11 +206,50 @@ app.get('/status', async (req, res) => {
   res.json({
     obsConnected,
     activeMeetings: [...activeMeetings.keys()],
-    recording: obsConnected ? await isRecording().catch(() => null) : null
+    recording: obsConnected ? await isRecording().catch(() => null) : null,
+    drive: driveStatus()
   });
+});
+
+// Sign-in: the extension opens /drive/connect in a tab, Google sends the
+// browser back to /drive/callback, and the bridge stores the account.
+const page = (title, text) => `<!doctype html><meta charset="utf-8"><title>MeetRec</title>
+<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5">
+<h2>${title}</h2><p>${text}</p></body>`;
+const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+app.get('/drive/connect', (req, res) => {
+  if (!driveStatus().configured) {
+    return res.status(503).send(page('Google Drive isn\'t set up',
+      'Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to <code>bridge/.env</code> and restart the bridge. See the README.'));
+  }
+  res.redirect(startLogin(`http://127.0.0.1:${PORT}/drive/callback`));
+});
+
+app.get('/drive/callback', async (req, res) => {
+  const { state, code, error } = req.query;
+  if (error || !code) {
+    return res.status(400).send(page('Not connected', `Google sign-in was cancelled (${escapeHtml(error || 'no code')}). You can close this tab.`));
+  }
+  try {
+    const email = await finishLogin(String(state), String(code));
+    res.send(page('Google Drive connected ✓',
+      `Recordings will upload to the <b>MeetRec</b> folder in ${email ? `<b>${escapeHtml(email)}</b>'s` : 'your'} Drive. You can close this tab.`));
+  } catch (err) {
+    console.error('[MeetRec] Google sign-in failed:', err.message);
+    res.status(400).send(page('Not connected', `${escapeHtml(err.message)}. You can close this tab and try again.`));
+  }
+});
+
+app.post('/drive/disconnect', async (req, res) => {
+  await logout();
+  res.status(204).end();
 });
 
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[MeetRec] bridge listening on http://127.0.0.1:${PORT}`);
+  const drive = driveStatus();
+  console.log(`[MeetRec] Google Drive: ${drive.connected ? `connected as ${drive.email}` : drive.configured ? 'not connected (use the extension to connect)' : 'not set up'}`);
+  resumeUploads();
   ensureConnected().catch((err) => console.error('[MeetRec] initial OBS connect failed:', err.message));
 });

@@ -32,7 +32,7 @@ return server;
 const wss = startMockObs(OBS_PORT);
 
 const bridge = spawn('node', ['server.js'], { cwd: BRIDGE_DIR,
-  env: { ...process.env, PORT: '17699', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '2', OBS_LAUNCH_COMMAND: '' } });
+  env: { ...process.env, PORT: '17699', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '2', OBS_LAUNCH_COMMAND: '' } });
 bridge.stdout.on('data', d => process.stdout.write('  bridge| ' + d));
 bridge.stderr.on('data', d => process.stdout.write('  bridge! ' + d));
 
@@ -83,7 +83,7 @@ console.log('OBS calls:', calls.join(', '));
 const LAUNCH_OBS_PORT = 4498, LAUNCH_BRIDGE = 'http://127.0.0.1:17698';
 const marker = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'meetrec-')), 'launched');
 const bridge2 = spawn('node', ['server.js'], { cwd: BRIDGE_DIR,
-  env: { ...process.env, PORT: '17698', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${LAUNCH_OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '',
+  env: { ...process.env, PORT: '17698', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${LAUNCH_OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '',
     START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '2', HEARTBEAT_TIMEOUT_SECONDS: '4', OBS_LAUNCH_COMMAND: `touch '${marker}'` } });
 bridge2.stdout.on('data', d => process.stdout.write('  bridge2| ' + d));
 bridge2.stderr.on('data', d => process.stdout.write('  bridge2! ' + d));

@@ -5,6 +5,10 @@
   "description": "Automatically starts OBS recording when you join a Google Meet call and stops it shortly after you leave.",
   "permissions": ["storage", "scripting"],
   "host_permissions": ["https://meet.google.com/*", "http://127.0.0.1/*"],
+  "action": {
+    "default_title": "MeetRec",
+    "default_popup": "popup.html"
+  },
   "background": {
     "service_worker": "background.js"
   },
