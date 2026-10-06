@@ -9,10 +9,22 @@ import https from 'https';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const FOLDER_NAME = process.env.GOOGLE_DRIVE_FOLDER_NAME || 'MeetRec';
-const DELETE_AFTER_UPLOAD = process.env.DELETE_AFTER_UPLOAD === 'true';
+const SETTINGS_FILE = process.env.DRIVE_SETTINGS_FILE || fileURLToPath(new URL('drive-settings.json', import.meta.url));
+// Values saved from the extension popup win over the .env ones. The file holds
+// the client secret, so it's kept private.
+const saved = (() => {
+  try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch { return {}; }
+})();
+let CLIENT_ID = saved.clientId || process.env.GOOGLE_CLIENT_ID || '';
+let CLIENT_SECRET = saved.clientSecret || process.env.GOOGLE_CLIENT_SECRET || '';
+let folderName = saved.folderName || process.env.GOOGLE_DRIVE_FOLDER_NAME || 'MeetRec';
+const envFlag = (name, fallback) => (process.env[name] ? process.env[name] === 'true' : fallback);
+// Checkboxes in the extension popup; saved values win over the .env ones.
+const flags = {
+  uploadEnabled: saved.uploadEnabled ?? true,
+  deleteAfterUpload: saved.deleteAfterUpload ?? envFlag('DELETE_AFTER_UPLOAD', false),
+  uploadManual: saved.uploadManual ?? envFlag('UPLOAD_MANUAL_RECORDINGS', false)
+};
 // Where the sign-in is saved. Holds a refresh token, so it's kept private.
 const ACCOUNT_FILE = process.env.DRIVE_ACCOUNT_FILE || fileURLToPath(new URL('drive-account.json', import.meta.url));
 // Recordings waiting to upload, so a bridge restart doesn't lose them.
@@ -35,7 +47,7 @@ const RETRY_MAX_MS = RETRY_BASE_MS * 30;
 const STALL_TIMEOUT_MS = Number(process.env.DRIVE_STALL_TIMEOUT_MS || 120000);
 const REQUEST_TIMEOUT_MS = 60000;
 
-const configured = Boolean(CLIENT_ID && CLIENT_SECRET);
+const isConfigured = () => Boolean(CLIENT_ID && CLIENT_SECRET);
 
 function loadAccount() {
   try {
@@ -76,13 +88,17 @@ function saveQueue() {
   }
 }
 
-export const driveEnabled = () => Boolean(configured && account);
+export const driveEnabled = () => Boolean(isConfigured() && account);
 
 export function driveStatus() {
   return {
-    configured,
+    configured: isConfigured(),
     connected: driveEnabled(),
     email: account?.email ?? null,
+    folderName,
+    clientId: CLIENT_ID,
+    ...flags,
+    hasSecret: Boolean(CLIENT_SECRET),
     uploading,
     queued: queue.map((q) => q.filePath).filter((f) => f !== uploading),
     lastUpload
@@ -145,6 +161,22 @@ export async function finishLogin(state, code) {
   console.log(`[MeetRec] connected to Google Drive as ${email ?? 'unknown account'}`);
   resumeUploads(); // anything that waited for a sign-in
   return email;
+}
+
+// Blank fields keep their current value. A sign-in belongs to the client that
+// issued it, so changing the ID or secret signs out.
+export async function saveSettings({ clientId, clientSecret, folderName: name, ...checks }) {
+  const id = String(clientId ?? '').trim() || CLIENT_ID;
+  const secret = String(clientSecret ?? '').trim() || CLIENT_SECRET;
+  const folder = String(name ?? '').trim() || folderName;
+  if (folder.length > 200) throw new Error('invalid folder name');
+  if (id !== CLIENT_ID || secret !== CLIENT_SECRET) await logout();
+  if (folder !== folderName) folderId = null;
+  CLIENT_ID = saved.clientId = id;
+  CLIENT_SECRET = saved.clientSecret = secret;
+  folderName = saved.folderName = folder;
+  for (const k of Object.keys(flags)) if (typeof checks[k] === 'boolean') flags[k] = saved[k] = checks[k];
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(saved, null, 2), { mode: 0o600 });
 }
 
 export async function logout() {
@@ -229,7 +261,7 @@ const sessionGone = () => Object.assign(new Error('upload session expired, start
 
 async function getFolderId() {
   if (folderId) return folderId;
-  const q = `name = '${FOLDER_NAME.replace(/['\\]/g, '\\$&')}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const q = `name = '${folderName.replace(/['\\]/g, '\\$&')}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
   const res = await driveFetch(`${API_URL}/drive/v3/files?${new URLSearchParams({ q, fields: 'files(id)', spaces: 'drive' })}`);
   if (!res.ok) throw new Error(`folder lookup failed: HTTP ${res.status} ${await res.text()}`);
   const { files } = await res.json();
@@ -238,11 +270,11 @@ async function getFolderId() {
   const created = await driveFetch(`${API_URL}/drive/v3/files?fields=id`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
   });
   if (!created.ok) throw new Error(`folder create failed: HTTP ${created.status} ${await created.text()}`);
   folderId = (await created.json()).id;
-  console.log(`[MeetRec] created Drive folder "${FOLDER_NAME}"`);
+  console.log(`[MeetRec] created Drive folder "${folderName}"`);
   return folderId;
 }
 
@@ -353,7 +385,7 @@ async function processQueue() {
       removeJob(job);
       console.log(`[MeetRec] uploaded to Drive: ${file.webViewLink || file.id}`);
       lastUpload = { filePath: job.filePath, ok: true, link: file.webViewLink || null, at: new Date().toISOString() };
-      if (DELETE_AFTER_UPLOAD) {
+      if (flags.deleteAfterUpload) {
         await fs.promises.unlink(job.filePath);
         console.log(`[MeetRec] deleted local copy ${job.filePath}`);
       }

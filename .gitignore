@@ -5,3 +5,5 @@ node_modules/
 bridge/drive-account.json
 # Recordings waiting to upload
 bridge/drive-queue.json
+# Folder name chosen in the extension popup
+bridge/drive-settings.json

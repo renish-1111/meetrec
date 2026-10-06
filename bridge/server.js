@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import OBSWebSocket from 'obs-websocket-js/json';
 import { spawn } from 'child_process';
-import { driveEnabled, driveStatus, queueUpload, resumeUploads, startLogin, finishLogin, logout } from './drive.js';
+import { driveEnabled, driveStatus, queueUpload, resumeUploads, startLogin, finishLogin, logout, saveSettings } from './drive.js';
 
 const PORT = Number(process.env.PORT || 17643);
 const OBS_URL = process.env.OBS_WEBSOCKET_URL || 'ws://127.0.0.1:4455';
@@ -27,8 +27,6 @@ const activeMeetings = new Map();
 let startTimer = null;
 let stopTimer = null;
 
-// Recordings you start by hand in OBS are only uploaded if you opt in.
-const UPLOAD_MANUAL_RECORDINGS = process.env.UPLOAD_MANUAL_RECORDINGS === 'true';
 let startedByMeetRec = false;
 
 // OBS emits STOPPED once the file is fully written, so it's safe to upload then.
@@ -36,7 +34,9 @@ obs.on('RecordStateChanged', ({ outputState, outputPath }) => {
   if (outputState !== 'OBS_WEBSOCKET_OUTPUT_STOPPED') return;
   const ours = startedByMeetRec;
   startedByMeetRec = false;
-  if (!outputPath || !driveStatus().configured || !(ours || UPLOAD_MANUAL_RECORDINGS)) return;
+  const { configured, uploadEnabled, uploadManual } = driveStatus();
+  // Recordings you start by hand in OBS are only uploaded if you opt in.
+  if (!outputPath || !configured || !uploadEnabled || !(ours || uploadManual)) return;
   // Queued even while Drive is disconnected; it uploads once you connect.
   queueUpload(outputPath);
   if (!driveEnabled()) console.log('[MeetRec] Google Drive not connected, the recording will upload once you connect');
@@ -221,7 +221,7 @@ const escapeHtml = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
 app.get('/drive/connect', (req, res) => {
   if (!driveStatus().configured) {
     return res.status(503).send(page('Google Drive isn\'t set up',
-      'Add <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> to <code>bridge/.env</code> and restart the bridge. See the README.'));
+      'Enter your Google client ID and secret in the MeetRec extension popup. See the README.'));
   }
   res.redirect(startLogin(`http://127.0.0.1:${PORT}/drive/callback`));
 });
@@ -238,6 +238,15 @@ app.get('/drive/callback', async (req, res) => {
   } catch (err) {
     console.error('[MeetRec] Google sign-in failed:', err.message);
     res.status(400).send(page('Not connected', `${escapeHtml(err.message)}. You can close this tab and try again.`));
+  }
+});
+
+app.post('/drive/settings', async (req, res) => {
+  try {
+    await saveSettings(req.body ?? {});
+    res.status(204).end();
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

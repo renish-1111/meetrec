@@ -53,7 +53,7 @@ cat > "$UNIT_FILE" <<EOF
 [Unit]
 Description=MeetRec bridge (auto-records Google Meet calls in OBS)
 # Starts with your desktop login, so an OBS launched by the bridge can open
-# on your screen (DISPLAY etc. come from the graphical session).
+# on your screen (DISPLAY / WAYLAND_DISPLAY come from the graphical session).
 After=graphical-session.target
 PartOf=graphical-session.target
 
@@ -70,6 +70,10 @@ KillMode=process
 [Install]
 WantedBy=graphical-session.target
 EOF
+
+# Hand the session's display variables (X11 or Wayland) to the service so an
+# OBS it launches can open a window.
+systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_SESSION_TYPE XDG_RUNTIME_DIR 2>/dev/null || true
 
 systemctl --user daemon-reload
 systemctl --user enable "$SERVICE" >/dev/null

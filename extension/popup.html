@@ -3,26 +3,70 @@
 <head>
 <meta charset="utf-8">
 <style>
-  :root { color-scheme: light dark; --muted: #6b6b6b; --line: #e3e3e3; --ok: #1e8e3e; --bad: #d93025; --accent: #1a73e8; }
-  @media (prefers-color-scheme: dark) { :root { --muted: #a0a0a0; --line: #3a3a3a; --ok: #81c995; --bad: #f28b82; --accent: #8ab4f8; } }
-  body { font: 13px/1.4 system-ui, sans-serif; width: 280px; margin: 0; padding: 14px; }
-  h1 { font-size: 15px; margin: 0 0 10px; }
-  .row { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); }
-  .row span:first-child { color: var(--muted); }
-  .ok { color: var(--ok); } .bad { color: var(--bad); }
-  #drive { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-  #drive p { margin: 0 0 8px; overflow-wrap: anywhere; }
-  button { width: 100%; padding: 8px; border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer;
-           background: var(--accent); color: #fff; }
-  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
-  a { color: var(--accent); }
-  .muted { color: var(--muted); }
+  :root {
+    color-scheme: light dark;
+    --bg: #f2f2f7; --card: #fff; --text: #1d1d1f; --muted: #86868b; --line: #e5e5ea; --field: #f2f2f7;
+    --ok: #34c759; --bad: #ff3b30; --accent: #007aff; --accent-text: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #000; --card: #1c1c1e; --text: #f5f5f7; --muted: #8e8e93; --line: #38383a; --field: #2c2c2e;
+            --ok: #30d158; --bad: #ff453a; --accent: #0a84ff; }
+  }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+         -webkit-font-smoothing: antialiased; width: 400px; margin: 0; padding: 14px 14px 10px; background: var(--bg); color: var(--text); }
+  h1 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; margin: 0 4px 10px; display: flex; align-items: center; gap: 8px; }
+  h1::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 20%, transparent); }
+  body.up h1::after { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+  .card { background: var(--card); border-radius: 12px; padding: 0 14px; margin-bottom: 10px; }
+  #status { display: grid; grid-template-columns: repeat(3, 1fr); padding: 10px 0; }
+  .row { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .row + .row { border-left: .5px solid var(--line); }
+  .row span:first-child { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .row span:last-child { font-weight: 600; }
+  .ok { color: var(--ok) !important; } .bad { color: var(--bad) !important; } .muted { color: var(--muted); }
+  #drive { padding: 12px 14px; }
+  #drive > * { margin: 0 0 10px; }
+  #drive > :last-child { margin-bottom: 0; }
+  #drive p { overflow-wrap: anywhere; }
+  .title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .head { display: flex; justify-content: space-between; align-items: center; }
+  .head p { margin: 0; }
+  details { border-top: .5px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 500; color: var(--accent); list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: " ›"; }
+  details[open] > summary::after { content: " ⌄"; }
+  form { display: grid; gap: 5px; margin-top: 8px; }
+  .field { display: grid; grid-template-columns: 96px 1fr; align-items: center; }
+  .field label { margin: 0; }
+  label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 0 2px; }
+  input:not([type=checkbox]) { width: 100%; padding: 6px 10px; font: inherit; color: inherit; background: var(--field);
+          border: 0; border-radius: 8px; }
+  input::placeholder { color: var(--muted); opacity: .7; }
+  input:focus { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  label.check { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0; padding: 4px 0;
+                font-size: 13px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text); border-top: .5px solid var(--line); }
+  input[type=checkbox] { appearance: none; flex: none; width: 42px; height: 26px; margin: 0; border-radius: 13px; cursor: pointer;
+          background: color-mix(in srgb, var(--muted) 40%, transparent); position: relative; transition: background .2s; }
+  input[type=checkbox]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+          background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  input[type=checkbox]:checked { background: var(--ok); }
+  input[type=checkbox]:checked::after { transform: translateX(16px); }
+  button { width: 100%; padding: 9px; border: 0; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+           background: var(--accent); color: var(--accent-text); margin-top: 8px; transition: opacity .15s, transform .1s; }
+  button:hover:not(:disabled) { opacity: .88; }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.link { width: auto; margin: 0; padding: 4px 8px; background: transparent; color: var(--bad); font-size: 13px; font-weight: 500; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
   <h1>MeetRec</h1>
-  <div id="status"><p class="muted">Checking…</p></div>
-  <div id="drive" hidden></div>
+  <div id="status" class="card"><p class="muted" style="margin:8px 0">Checking…</p></div>
+  <div id="drive" class="card" hidden></div>
   <script src="popup.js"></script>
 </body>
 </html>

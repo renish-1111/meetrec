@@ -116,10 +116,14 @@ All in `bridge/.env`. Restart the bridge after changing them.
 | `STOP_DELAY_SECONDS` | `2` | Wait before recording stops. Rejoining in time keeps the same recording |
 | `HEARTBEAT_TIMEOUT_SECONDS` | `15` | A tab silent this long counts as having left |
 | `OBS_LAUNCH_COMMAND` | `obs-studio --minimize-to-tray ...` | How to open OBS. Leave empty to turn off |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(empty)* | Turns on the Drive upload |
-| `GOOGLE_DRIVE_FOLDER_NAME` | `MeetRec` | Drive folder name |
-| `DELETE_AFTER_UPLOAD` | `false` | Delete the local file after it uploads |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(empty)* | Turns on the Drive upload. Can also be entered in the extension popup, which overrides these |
+| `GOOGLE_DRIVE_FOLDER_NAME` | `MeetRec` | Default Drive folder name. A name saved in the extension popup overrides it |
+| `DELETE_AFTER_UPLOAD` | `false` | Delete the local file after it uploads (also a checkbox in the popup) |
 | `UPLOAD_MANUAL_RECORDINGS` | `false` | Also upload recordings you start by hand in OBS |
+
+## Wayland
+
+MeetRec works on Wayland. The bridge only talks to OBS over WebSocket, so nothing else changes. In OBS, add a **Screen Capture (PipeWire)** source (not "Screen Capture (XSHM)") and approve the share prompt once. If OBS fails to open from the bridge, set `OBS_LAUNCH_COMMAND=QT_QPA_PLATFORM=xcb obs-studio --minimize-to-tray`.
 
 ## Troubleshooting
 
