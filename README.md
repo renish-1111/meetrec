@@ -94,6 +94,8 @@ Uploads are reliable. If the upload is interrupted by a network outage, laptop s
 
 ## Everyday use
 
+Click the MeetRec toolbar icon and use the **Auto-record Meet calls** switch to turn automatic recording on or off. Switching off stops any recording the current call started and ignores new calls; switching on starts recording right away if you're in a call. The setting is remembered across browser restarts. The popup also has **Start**, **Pause/Resume** and **Stop** buttons for controlling the OBS recording by hand (a recording you start this way is not stopped when a call ends or auto-record is switched off; stop it yourself) (also available as `POST /record/start|stop|pause|resume` on the bridge).
+
 | To… | Run |
 |---|---|
 | Check status | `curl http://127.0.0.1:17643/status` |

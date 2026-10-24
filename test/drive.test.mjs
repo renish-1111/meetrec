@@ -89,7 +89,7 @@ const startBridge = (port, extra) => {
   const b = spawn('node', ['server.js'], { cwd: BRIDGE_DIR, env: { ...process.env, PORT: String(port),
     OBS_WEBSOCKET_URL: `ws://127.0.0.1:${OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '1',
     OBS_LAUNCH_COMMAND: '', GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', DRIVE_ACCOUNT_FILE: path.join(tmp, 'account.json'),
-    DRIVE_QUEUE_FILE: path.join(tmp, 'queue.json'), DRIVE_CHUNK_SIZE: String(256 * 1024), DRIVE_STALL_TIMEOUT_MS: '1000',
+    DRIVE_QUEUE_FILE: path.join(tmp, 'queue.json'), DRIVE_SETTINGS_FILE: path.join(tmp, 'settings.json'), DRIVE_CHUNK_SIZE: String(256 * 1024), DRIVE_STALL_TIMEOUT_MS: '1000',
     GOOGLE_DRIVE_FOLDER_NAME: 'MeetRec', DELETE_AFTER_UPLOAD: 'false', UPLOAD_MANUAL_RECORDINGS: 'false', GOOGLE_TOKEN_URL: `http://127.0.0.1:${GOOGLE_PORT}/token`,
     GOOGLE_AUTH_URL: 'https://accounts.example/auth', GOOGLE_REVOKE_URL: `http://127.0.0.1:${GOOGLE_PORT}/revoke`,
     GOOGLE_API_URL: `http://127.0.0.1:${GOOGLE_PORT}`, DRIVE_RETRY_BASE_MS: '200', ...extra } });

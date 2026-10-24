@@ -3,6 +3,9 @@
 // chrome.tabs.onRemoved so a hard-closed tab still triggers a "leave".
 const BRIDGE_BASE_URL = 'http://127.0.0.1:17643';
 const STORAGE_KEY = 'activeTabs';
+// User-facing on/off switch (popup). Stored in storage.local so it survives
+// browser restarts; absent means on.
+const ENABLED_KEY = 'autoRecord';
 
 // MV3 service workers are killed after ~30s idle, wiping in-memory state, so
 // the set of in-call tabs lives in chrome.storage.session (survives worker
@@ -22,6 +25,17 @@ function updateActiveTabs(mutate) {
   return result;
 }
 
+async function isEnabled() {
+  const { [ENABLED_KEY]: enabled = true } = await chrome.storage.local.get(ENABLED_KEY);
+  return enabled !== false;
+}
+
+async function listTabs() {
+  await storageQueue; // let in-flight updates land first
+  const { [STORAGE_KEY]: stored = [] } = await chrome.storage.session.get(STORAGE_KEY);
+  return stored;
+}
+
 // Each resolves to true only if the tab's state actually changed.
 const addTab = (tabId) => updateActiveTabs((tabs) => !tabs.has(tabId) && !!tabs.add(tabId));
 const removeTab = (tabId) => updateActiveTabs((tabs) => tabs.delete(tabId));
@@ -38,28 +52,39 @@ async function notifyBridge(path, tabId, url) {
   }
 }
 
+// Tabs are tracked even while auto-recording is off, so turning it back on
+// mid-call starts recording immediately. Only the bridge calls are gated.
 chrome.runtime.onMessage.addListener((message, sender) => {
   const tabId = sender.tab?.id;
   if (tabId === undefined) return;
 
   if (message.type === 'meet-join') {
-    addTab(tabId).then((added) => {
-      if (added) notifyBridge('/join', tabId, message.url);
+    addTab(tabId).then(async (added) => {
+      if (added && await isEnabled()) notifyBridge('/join', tabId, message.url);
     });
   } else if (message.type === 'meet-heartbeat') {
-    // Always forwarded: the bridge may have restarted and forgotten this tab.
+    // Forwarded every time (while enabled): the bridge may have restarted and forgotten this tab.
     addTab(tabId);
-    notifyBridge('/join', tabId, message.url);
+    isEnabled().then((enabled) => { if (enabled) notifyBridge('/join', tabId, message.url); });
   } else if (message.type === 'meet-leave') {
-    removeTab(tabId).then((removed) => {
-      if (removed) notifyBridge('/leave', tabId, message.url);
+    removeTab(tabId).then(async (removed) => {
+      if (removed && await isEnabled()) notifyBridge('/leave', tabId, message.url);
     });
   }
 });
 
+// Switching off stops the recording for calls in progress; switching on
+// starts it for them.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local' || !changes[ENABLED_KEY]) return;
+  const enabled = changes[ENABLED_KEY].newValue !== false;
+  if (enabled === (changes[ENABLED_KEY].oldValue !== false)) return;
+  for (const tabId of await listTabs()) notifyBridge(enabled ? '/join' : '/leave', tabId, null);
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => {
-  removeTab(tabId).then((removed) => {
-    if (removed) notifyBridge('/leave', tabId, null);
+  removeTab(tabId).then(async (removed) => {
+    if (removed && await isEnabled()) notifyBridge('/leave', tabId, null);
   });
 });
 

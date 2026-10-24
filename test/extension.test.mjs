@@ -6,13 +6,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let fails = 0; const check = (n, c) => { console.log(`${c ? 'PASS' : 'FAIL'} ${n}`); if (!c) fails++; };
 
 // ---- background.js ----
-const sessionStore = {}; const bridgeCalls = []; const injected = [];
+const sessionStore = {}; const localStore = {}; const bridgeCalls = []; const injected = [];
 function loadWorker() { // fresh worker = fresh globals, same session storage
-  const l = { msg: [], removed: [], installed: [] };
+  const l = { msg: [], removed: [], installed: [], changed: [] };
   const chrome = {
     storage: { session: {
       get: async k => { await sleep(1); return k in sessionStore ? { [k]: structuredClone(sessionStore[k]) } : {}; },
-      set: async o => { await sleep(1); Object.assign(sessionStore, structuredClone(o)); } } },
+      set: async o => { await sleep(1); Object.assign(sessionStore, structuredClone(o)); } },
+      local: { get: async k => { await sleep(1); return k in localStore ? { [k]: localStore[k] } : {}; } },
+      onChanged: { addListener: f => l.changed.push(f) } },
     runtime: { onMessage: { addListener: f => l.msg.push(f) }, onInstalled: { addListener: f => l.installed.push(f) } },
     tabs: { onRemoved: { addListener: f => l.removed.push(f) },
       query: async ({ url }) => (url === 'https://meet.google.com/*' ? [{ id: 7 }, { id: 8 }] : []) },
@@ -21,6 +23,9 @@ function loadWorker() { // fresh worker = fresh globals, same session storage
   vm.runInNewContext(fs.readFileSync(new URL('background.js', EXT), 'utf8'), { chrome, fetch, console });
   return { msg: (type, tabId) => l.msg.forEach(f => f({ type, url: 'u' }, { tab: { id: tabId } })),
            close: tabId => l.removed.forEach(f => f(tabId)),
+           setEnabled: async v => { // what the popup does: write storage, fire onChanged
+             const oldValue = localStore.autoRecord; localStore.autoRecord = v;
+             await Promise.all(l.changed.map(f => f({ autoRecord: { oldValue, newValue: v } }, 'local'))); },
            install: () => Promise.all(l.installed.map(f => f({ reason: 'update' }))) };
 }
 let w = loadWorker();
@@ -39,6 +44,26 @@ w.msg('meet-leave', 3); await sleep(50);
 check('leave after heartbeat-only tab still reaches bridge', bridgeCalls.at(-1) === 'leave:3');
 await w.install();
 check('on install/reload, content script re-injected into open Meet tabs', injected.join() === '7:content.js,8:content.js');
+
+// ---- auto-record toggle ----
+bridgeCalls.length = 0; w = loadWorker();
+w.msg('meet-join', 10); w.msg('meet-join', 11); await sleep(50);
+check('enabled by default (no stored value)', bridgeCalls.join() === 'join:10,join:11');
+await w.setEnabled(false); await sleep(50);
+check('turning off sends /leave for every in-call tab', bridgeCalls.slice(2).sort().join() === 'leave:10,leave:11');
+bridgeCalls.length = 0;
+w.msg('meet-join', 12); w.msg('meet-heartbeat', 10); w.msg('meet-leave', 11); w.close(12); await sleep(50);
+check('while off, join/heartbeat/leave/tab-close never reach the bridge', bridgeCalls.length === 0);
+await w.setEnabled(true); await sleep(50);
+check('turning on re-joins only tabs still in a call (10), tab state kept while off', bridgeCalls.join() === 'join:10');
+bridgeCalls.length = 0;
+await w.setEnabled(true); await sleep(50);
+check('setting the same value again is a no-op', bridgeCalls.length === 0);
+w = loadWorker(); localStore.autoRecord = false; w.msg('meet-join', 20); await sleep(50);
+check('disabled state survives a service worker restart', bridgeCalls.length === 0);
+w.msg('meet-leave', 20); await sleep(50); localStore.autoRecord = true; w.msg('meet-join', 21); await sleep(50);
+check('re-enabled worker forwards joins again', bridgeCalls.join() === 'join:21');
+w.msg('meet-leave', 21); await sleep(50); bridgeCalls.length = 0;
 
 // ---- content.js ----
 let present = false, qsCount = 0, observerCb, observerDisconnected = false, sent = [];

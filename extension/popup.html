@@ -29,6 +29,8 @@
   #drive > * { margin: 0 0 10px; }
   #drive > :last-child { margin-bottom: 0; }
   #drive p { overflow-wrap: anywhere; }
+  #drive p:empty { display: none; }
+  details[open] > summary { margin-bottom: 4px; }
   .title { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
   .head { display: flex; justify-content: space-between; align-items: center; }
   .head p { margin: 0; }
@@ -59,6 +61,18 @@
   button:active:not(:disabled) { transform: scale(.98); }
   button:disabled { opacity: .4; cursor: default; }
   button.link { width: auto; margin: 0; padding: 4px 8px; background: transparent; color: var(--bad); font-size: 13px; font-weight: 500; }
+  label.card.check { padding: 12px 14px; margin: 0 0 10px; border-top: 0; align-items: center; }
+  label.card.check b { display: block; font-weight: 600; font-size: 14px; }
+  label.card.check small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 1px; }
+  #controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  #controls button { margin: 0; padding: 10px 4px; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+                     background: var(--card); color: var(--text); box-shadow: 0 0 0 .5px var(--line) inset; }
+  #controls button i { font-style: normal; font-size: 15px; letter-spacing: -2px; line-height: 1; }
+  #controls button.start i { color: var(--ok); }
+  #controls button.stop i { color: var(--bad); }
+  #controls button.pause i { color: var(--accent); }
+  #controls p:empty { display: none; }
+  #controls p { grid-column: 1 / -1; margin: 0; text-align: center; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
@@ -66,6 +80,8 @@
 <body>
   <h1>MeetRec</h1>
   <div id="status" class="card"><p class="muted" style="margin:8px 0">Checking…</p></div>
+  <div id="controls" hidden></div>
+  <label class="card check"><span><b>Auto-record Meet calls</b><small>Start and stop with your meetings</small></span><input type="checkbox" id="toggle" checked></label>
   <div id="drive" class="card" hidden></div>
   <script src="popup.js"></script>
 </body>
