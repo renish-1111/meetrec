@@ -32,7 +32,8 @@ return server;
 const wss = startMockObs(OBS_PORT);
 
 const bridge = spawn('node', ['server.js'], { cwd: BRIDGE_DIR,
-  env: { ...process.env, PORT: '17699', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '2', OBS_LAUNCH_COMMAND: '' } });
+  env: { ...process.env, PORT: '17699', OBS_WEBSOCKET_URL: `ws://127.0.0.1:${OBS_PORT}`, OBS_WEBSOCKET_PASSWORD: '', GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', START_DELAY_SECONDS: '0', STOP_DELAY_SECONDS: '2', OBS_LAUNCH_COMMAND: '',
+  DRIVE_SETTINGS_FILE: path.join(os.tmpdir(), 'meetrec-no-settings.json'), DRIVE_ACCOUNT_FILE: path.join(os.tmpdir(), 'meetrec-no-account.json'), DRIVE_QUEUE_FILE: path.join(os.tmpdir(), 'meetrec-no-queue.json') } });
 bridge.stdout.on('data', d => process.stdout.write('  bridge| ' + d));
 bridge.stderr.on('data', d => process.stdout.write('  bridge! ' + d));
 

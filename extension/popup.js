@@ -2,6 +2,16 @@
 const BRIDGE_BASE_URL = 'http://127.0.0.1:17643';
 const statusEl = document.getElementById('status');
 const driveEl = document.getElementById('drive');
+const controlsEl = document.getElementById('controls');
+const toggleEl = document.getElementById('toggle');
+const ENABLED_KEY = 'autoRecord';
+
+// Master switch: when off, Meet calls no longer start or stop OBS recording.
+async function initToggle() {
+  const { [ENABLED_KEY]: stored = true } = await chrome.storage.local.get(ENABLED_KEY);
+  toggleEl.checked = stored !== false;
+  toggleEl.onchange = () => chrome.storage.local.set({ [ENABLED_KEY]: toggleEl.checked }).then(refresh);
+}
 
 function row(label, value, cls) {
   const div = document.createElement('div');
@@ -52,7 +62,7 @@ function settingsForm(drive) {
       body: JSON.stringify({ clientId: id.value, clientSecret: secret.value, folderName: folder.value,
         ...Object.fromEntries(Object.entries(checks).map(([k, c]) => [k, c.checked])) })
     }).catch(() => null);
-    if (res?.ok) refresh();
+    if (res?.ok) { settingsOpen = false; refresh(false, true); }
     else { msg.textContent = (await res?.json().catch(() => null))?.error || 'Could not save'; save.disabled = false; }
   };
   return form;
@@ -63,7 +73,8 @@ function renderDrive(drive) {
   driveEl.replaceChildren();
   const waiting = drive.queued?.length ?? 0;
   const waitingText = `${waiting} recording${waiting === 1 ? '' : 's'} waiting to upload`;
-  const settings = el('details', { open: !drive.configured });
+  const settings = el('details', { open: !drive.configured || settingsOpen });
+  settings.ontoggle = () => { settingsOpen = settings.open; };
   settings.append(el('summary', {}, 'Drive settings'), settingsForm(drive));
   if (!drive.configured) {
     driveEl.append(el('p', { className: 'muted' }, 'Enter your Google OAuth client to turn on Drive upload (see README).'), settings);
@@ -84,7 +95,7 @@ function renderDrive(drive) {
   out.onclick = async () => {
     out.disabled = true;
     await fetch(`${BRIDGE_BASE_URL}/drive/disconnect`, { method: 'POST' }).catch(() => {});
-    refresh();
+    refresh(false, true);
   };
   head.append(who, out);
   driveEl.append(head);
@@ -100,7 +111,74 @@ function renderDrive(drive) {
   driveEl.append(settings);
 }
 
-async function refresh() {
+let settingsOpen = false; // Drive settings panel expanded by the user
+let busy = false; // a manual control request is in flight
+let lastError = ''; // shown under the buttons until the next action
+
+// Manual Start / Pause-Resume / Stop, shown once the bridge is reachable.
+// The buttons are created once and updated in place: replacing them on every
+// poll swallowed any click whose mousedown and mouseup straddled a redraw.
+const controls = {};
+
+async function runControl(name) {
+  if (busy) return;
+  busy = true; // also pauses the background poll so it can't redraw mid-click
+  setControls({ busy: true });
+  const r = await fetch(`${BRIDGE_BASE_URL}/record/${name}`, { method: 'POST' })
+    .then((res) => res.json()).catch((err) => ({ ok: false, error: err.message }));
+  busy = false;
+  lastError = r.ok ? '' : `Failed: ${r.error}`;
+  await refresh();
+}
+
+function buildControls() {
+  const make = (key, className, getAction) => {
+    const b = el('button', { id: `btn-${key}`, className, onclick: () => runControl(getAction()) });
+    const icon = el('i'); const text = document.createTextNode('');
+    b.append(icon, text);
+    controls[key] = { b, icon, text };
+    return b;
+  };
+  controls.error = el('p', { className: 'bad' });
+  controlsEl.replaceChildren(
+    make('start', 'start', () => 'start'),
+    make('pause', 'pause', () => (controls.paused ? 'resume' : 'pause')),
+    make('stop', 'stop', () => 'stop'),
+    controls.error);
+}
+
+function setControls({ recording = false, paused = false, busy: isBusy = false } = {}) {
+  if (!controls.start) buildControls();
+  controls.paused = paused;
+  const set = (key, icon, label, disabled) => {
+    const c = controls[key];
+    if (c.icon.textContent !== icon) c.icon.textContent = icon;
+    if (c.text.textContent !== label) c.text.textContent = label;
+    c.b.disabled = disabled;
+  };
+  set('start', '●', 'Start', isBusy || recording);
+  set('pause', paused ? '▶' : '❚❚', paused ? 'Resume' : 'Pause', isBusy || !recording);
+  set('stop', '■', 'Stop', isBusy || !recording);
+}
+
+function renderControls(s) {
+  controlsEl.hidden = false;
+  setControls({ recording: !!s.recording, paused: !!s.paused });
+  controls.error.textContent = lastError;
+}
+
+// The Drive card is never redrawn while its settings are open (by a poll or a
+// button click), which would collapse the panel and reset unsaved checkboxes
+// and text to the saved values. Only forceDrive (after save/disconnect) does.
+let polling = false; // a background refresh is in flight
+
+async function refresh(poll = false, forceDrive = false) {
+  if (busy || (poll && polling)) return;
+  if (poll) polling = true;
+  try { await doRefresh(forceDrive); } finally { if (poll) polling = false; }
+}
+
+async function doRefresh(forceDrive) {
   let s;
   try {
     s = await fetch(`${BRIDGE_BASE_URL}/status`).then((r) => r.json());
@@ -108,16 +186,22 @@ async function refresh() {
     statusEl.replaceChildren(row('Bridge', 'Not running', 'bad'),
       el('p', { className: 'muted' }, 'Start it with ./install-autostart.sh or npm start in bridge/.'));
     driveEl.hidden = true;
+    controlsEl.hidden = true;
     document.body.classList.remove('up');
     return;
   }
+  if (busy) return; // a control was clicked while this was in flight; the response is stale
   statusEl.replaceChildren(
     row('Bridge', 'Running', 'ok'),
     row('OBS', s.obsConnected ? 'Connected' : 'Not connected', s.obsConnected ? 'ok' : 'bad'),
-    row('Recording', s.recording ? '● Recording' : 'No', s.recording ? 'bad' : '')
+    row('Recording', s.recording ? (s.paused ? 'Paused' : '● Recording') : 'No', s.recording && !s.paused ? 'bad' : '')
   );
+  renderControls(s);
   document.body.classList.add('up');
-  if (s.drive) renderDrive(s.drive);
+  if (s.drive && (forceDrive || !driveEl.querySelector('details[open]'))) renderDrive(s.drive);
 }
 
+initToggle();
 refresh();
+// Keep the buttons in step with OBS (recording started or stopped elsewhere).
+setInterval(() => refresh(true), 1500);

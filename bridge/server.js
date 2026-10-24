@@ -28,12 +28,16 @@ let startTimer = null;
 let stopTimer = null;
 
 let startedByMeetRec = false;
+// A recording started by hand from the popup is the user's to stop: ending a
+// call (or switching auto-record off) must not cut it short.
+let manualRecording = false;
 
 // OBS emits STOPPED once the file is fully written, so it's safe to upload then.
 obs.on('RecordStateChanged', ({ outputState, outputPath }) => {
   if (outputState !== 'OBS_WEBSOCKET_OUTPUT_STOPPED') return;
   const ours = startedByMeetRec;
   startedByMeetRec = false;
+  manualRecording = false;
   const { configured, uploadEnabled, uploadManual } = driveStatus();
   // Recordings you start by hand in OBS are only uploaded if you opt in.
   if (!outputPath || !configured || !uploadEnabled || !(ours || uploadManual)) return;
@@ -114,6 +118,53 @@ async function startRecording() {
     console.error('[MeetRec] failed to start recording:', err.message);
   }
 }
+
+// Manual controls from the extension popup. Unlike startRecording() these
+// don't depend on a meeting being active, and they throw so the popup can show why.
+// OBS acknowledges these requests before the output has actually changed
+// state, so a /status right after one can still show the old state. Wait for
+// the new state so the popup never renders stale buttons.
+async function waitForState(predicate, what, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate(await obs.call('GetRecordStatus'))) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`OBS did not ${what} in time`);
+}
+
+const RECORD_ACTIONS = {
+  async start() {
+    await connectOrLaunch(() => true);
+    if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+    manualRecording = true;
+    if (!(await isRecording())) {
+      await obs.call('StartRecord');
+      // Not marked startedByMeetRec: whether a hand-started recording uploads
+      // is the "Also upload recordings I start in OBS" setting's call.
+    }
+    await waitForState((s) => s.outputActive, 'start recording');
+  },
+  async stop() {
+    await ensureConnected();
+    if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+    manualRecording = false;
+    if (await isRecording()) await obs.call('StopRecord');
+    await waitForState((s) => !s.outputActive, 'stop recording');
+  },
+  async pause() {
+    await ensureConnected();
+    if (!(await isRecording())) throw new Error('not recording');
+    await obs.call('PauseRecord');
+    await waitForState((s) => s.outputPaused, 'pause recording');
+  },
+  async resume() {
+    await ensureConnected();
+    if (!(await isRecording())) throw new Error('not recording');
+    await obs.call('ResumeRecord');
+    await waitForState((s) => !s.outputPaused, 'resume recording');
+  }
+};
 
 async function stopRecording() {
   try {
@@ -196,17 +247,38 @@ function handleLeave(tabId, reason) {
       console.log(`[MeetRec] stopping recording in ${STOP_DELAY_MS}ms`);
       stopTimer = setTimeout(() => {
         stopTimer = null;
+        if (manualRecording) return console.log('[MeetRec] recording was started by hand, leaving it running');
         stopRecording();
       }, STOP_DELAY_MS);
     }
   }
 }
 
+// Manual actions run one at a time so a double-click can't send StartRecord twice.
+let manualQueue = Promise.resolve();
+
+app.post('/record/:action', async (req, res) => {
+  if (!Object.hasOwn(RECORD_ACTIONS, req.params.action)) return res.status(404).json({ ok: false, error: 'unknown action' });
+  const action = RECORD_ACTIONS[req.params.action];
+  try {
+    const run = manualQueue.then(action);
+    manualQueue = run.catch(() => {});
+    await run;
+    console.log(`[MeetRec] manual ${req.params.action}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[MeetRec] manual ${req.params.action} failed:`, err.message);
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/status', async (req, res) => {
+  const rec = obsConnected ? await obs.call('GetRecordStatus').catch(() => null) : null;
   res.json({
     obsConnected,
     activeMeetings: [...activeMeetings.keys()],
-    recording: obsConnected ? await isRecording().catch(() => null) : null,
+    recording: rec ? rec.outputActive : null,
+    paused: rec ? !!rec.outputPaused : false,
     drive: driveStatus()
   });
 });
